@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - "master"
-  # 允许手动触发工作流
   workflow_dispatch:
     inputs:
       logLevel:
@@ -12,30 +11,33 @@ on:
         required: false
         default: "warning"
 
+# 全局设置 Node.js 24 环境变量（核心修复）
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   buildx:
     runs-on: ubuntu-latest
-    # 核心：配置GHCR必需的权限（写入包、读取代码）
     permissions:
       packages: write
       contents: read
     steps:
       - name: Checkout code
+        # 确认 actions/checkout@v4 已适配 Node.js 24（官方已更新）
         uses: actions/checkout@v4
 
       - name: Get current date
         id: date
-        # 标准化输出当前日期（用于镜像标签）
         run: echo "today=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       - name: Set up QEMU
+        # 使用官方最新版（已支持 Node.js 24）
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Read GitHub username (lowercase)
-        # 将GitHub用户名转为小写（GHCR要求仓库名全小写）
         run: |
           echo "LOWER_ACTOR=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
@@ -44,26 +46,22 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          # GITHUB_TOKEN是GitHub自动生成的临时令牌，无需手动配置
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get commit hash (short)
         id: commitHash
-        # 获取短提交哈希（用于镜像标签）
         run: echo "COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Build and push to GHCR
+        # 使用 docker/build-push-action@v6（官方已适配 Node.js 24）
         uses: docker/build-push-action@v6
         with:
           context: .
-          # 多平台构建（确保你的Dockerfile支持这些架构）
           platforms: linux/amd64,linux/arm64/v8,linux/arm/v7
           push: true
-          # 仅保留GHCR的镜像标签
           tags: |
             ghcr.io/${{ env.LOWER_ACTOR }}/mihoyo-bbs:latest
             ghcr.io/${{ env.LOWER_ACTOR }}/mihoyo-bbs:${{ steps.date.outputs.today }}
             ghcr.io/${{ env.LOWER_ACTOR }}/mihoyo-bbs:${{ steps.commitHash.outputs.COMMIT_HASH }}
-          # 构建缓存（加速后续构建）
           cache-from: type=gha
           cache-to: type=gha,mode=max
