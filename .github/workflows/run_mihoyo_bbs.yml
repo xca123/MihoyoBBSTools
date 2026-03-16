@@ -1,58 +1,65 @@
-name: 米游社多账号自动任务（每12小时）
+# 工作流名称（自定义，便于识别）
+name: MihoyoBBSTools 自动运行
 
-# 方案1：全局强制Node.js 24（优先推荐，彻底消除警告）
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
-# 方案2：若方案1仍有警告，替换上方env为这个（临时允许Node.js 20）
-# env:
-#   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
-
+# 触发规则：手动触发 + 每12小时定时触发（UTC 0/12点 → 北京时间8/20点）
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # 手动触发（测试用）
   schedule:
-    - cron: '0 0,12 * * *'  # 每12小时运行（北京时间8/20点）
+    - cron: '0 0,12 * * *'  # 每12小时执行一次（UTC时区）
 
+# 全局环境变量（解决Node.js 24兼容问题）
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # 强制使用Node.js 24运行Actions组件
+  TZ: Asia/Shanghai  # 时区设置（避免时间相关逻辑出错）
+
+# 核心任务定义
 jobs:
-  run-multi-account:
+  run-bbs-tool:
     runs-on: ubuntu-latest
-    steps:
-      - name: 拉取仓库代码
-        uses: actions/checkout@v4
+    timeout-minutes: 30  # 超时时间（避免无限运行）
 
-      - name: 设置Python 3.10环境
-        uses: actions/setup-python@v5
+    steps:
+      # 步骤1：拉取仓库代码（升级到最新版v4.2.0，兼容Node.js 24）
+      - name: 拉取仓库代码
+        uses: actions/checkout@v4.2.0
+
+      # 步骤2：配置Python环境（升级到最新版v5.2.0，兼容Node.js 24）
+      - name: 配置Python 3.10环境
+        uses: actions/setup-python@v5.2.0
         with:
           python-version: '3.10'
-          cache: 'pip'
+          cache: 'pip'  # 缓存pip依赖，加速后续运行
 
+      # 步骤3：升级pip并安装项目依赖
       - name: 安装依赖包
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements.txt ]; then 
+            pip install -r requirements.txt 
+          else
+            echo "未找到requirements.txt，跳过依赖安装"
+          fi
 
-      - name: 执行多账号米游社任务
+      # 步骤4：执行核心脚本（传递Secrets中的敏感信息）
+      - name: 运行MihoyoBBSTools
         env:
-          COOKIE_LIST: ${{ secrets.COOKIE_LIST }}
+          COOKIE: ${{ secrets.COOKIE }}  # 从GitHub Secrets读取Cookie
+          # 若需要其他参数（如TOKEN），添加：
+          # TOKEN: ${{ secrets.TOKEN }}
         run: |
-          # 创建logs目录（避免日志上传时路径不存在）
-          mkdir -p ./logs
-          
-          # 分割并运行每个Cookie
-          echo "$COOKIE_LIST" | awk -F'###' '{for(i=1;i<=NF;i++){gsub(/^[ \t\n]+|[ \t\n]+$/,"",$i); if($i!="") print $i}}' > cookie.tmp
-          while IFS= read -r cookie; do
-            if [ -n "$cookie" ]; then
-              echo -e "\n==================== 运行账号：${cookie:0:20}... ===================="
-              # 运行脚本并把日志写入logs目录（方便排查）
-              COOKIE="$cookie" python main.py >> ./logs/run.log 2>&1
-            fi
-          done < cookie.tmp
-          rm -f cookie.tmp
+          # 打印环境信息（调试用）
+          echo "Python版本：$(python --version)"
+          echo "当前时间：$(date)"
+          # 执行项目核心脚本（替换为实际脚本名，如main.py/run.py）
+          python main.py
 
-      - name: 上传运行日志（仅当logs目录有文件时）
-        uses: actions/upload-artifact@v4
-        if: always()  # 即使前面步骤失败，也上传日志
+      # 可选步骤：上传运行日志（升级到最新版v4.4.0，兼容Node.js 24）
+      - name: 上传运行日志（仅失败时）
+        if: failure()  # 仅当脚本运行失败时执行
+        uses: actions/upload-artifact@v4.4.0
         with:
-          name: mihoyo-bbs-logs
-          path: ./logs/
-          retention-days: 3
+          name: run-logs
+          path: |
+            ./logs
+            ./*.log
+          retention-days: 7  # 日志保留7天
