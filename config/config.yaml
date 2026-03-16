@@ -6,7 +6,7 @@ version: 15
 push: ""
 account:
   #登入账号只需要修改cookie就行了
-  cookie: ""
+  cookie: "_MHYUUID=1c785952-1596-4aa9-be4d-21b940ba4640; DEVICEFP_SEED_ID=f324dd6e0374f0ea; DEVICEFP_SEED_TIME=1766977714072; DEVICEFP=38d8154c3ec0c; MIHOYO_LOGIN_PLATFORM_LIFECYCLE_ID=7167339c69; cookie_token_v2=v2_GGc_5-tJdGobER9AjlJxafAN5DCjouZ6hJArQN8I12Fv49DfclzzPSi04ZLpmau7-bBRRKnLQq_OGZyvfJ6LLzI2Kz3vY5OEdO-dOWoGiEDTma4dw5v1cKsQt5PZFcmXSMnErCzp_sMQdrRi-Q==.CAE=; account_mid_v2=0zel44zp33_mhy; account_id_v2=17285157; ltoken_v2=v2_pa4FARUWoY0vGJx9c5nKts0-wBcdh5UESPA3N8MfZpn8HwTl-hu2P5MlnC6fbQryDM5ILoIEDAGclbkD8TuFQ3ytHEpvzSmLjJsCX3VdgWk1OvZepdr1xrHupVrWRMCruaLLcYYCQSpkH6cVTQ==.CAE=; ltmid_v2=0zel44zp33_mhy; ltuid_v2=17285157; cookie_token=K367minB76X3pN9cTTMWNubfex4sK1J18xHqj4rK; account_id=17285157; ltoken=sRAP8ngU3gNR6GW9ZBGMffV8bcgRcCQCa5QZQctP; ltuid=17285157"
   stuid: ""
   stoken: ""
   mid: ""
@@ -64,7 +64,7 @@ games:
       black_list: []
     # 崩坏: 星穹铁道
     honkai_sr:
-      checkin: false
+      checkin: true
       black_list: []
     #绝区零
     zzz:
