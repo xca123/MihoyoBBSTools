@@ -1,61 +1,58 @@
 name: 米游社多账号自动任务（每12小时）
 
-# 全局强制使用 Node.js 24，消除弃用警告
+# 方案1：全局强制Node.js 24（优先推荐，彻底消除警告）
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+# 方案2：若方案1仍有警告，替换上方env为这个（临时允许Node.js 20）
+# env:
+#   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
 on:
-  # 手动触发（方便测试）
   workflow_dispatch:
-  # 定时触发：每12小时运行（UTC 0/12点 → 北京时间8/20点）
   schedule:
-    - cron: '0 0,12 * * *'
+    - cron: '0 0,12 * * *'  # 每12小时运行（北京时间8/20点）
 
 jobs:
   run-multi-account:
     runs-on: ubuntu-latest
     steps:
-      # 拉取代码（适配 Node.js 24）
       - name: 拉取仓库代码
         uses: actions/checkout@v4
 
-      # 配置 Python 环境（适配 Node.js 24）
-      - name: 设置 Python 3.10 环境
+      - name: 设置Python 3.10环境
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          cache: 'pip'  # 缓存依赖，加速运行
+          cache: 'pip'
 
-      # 安装项目依赖
       - name: 安装依赖包
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 循环运行所有账号（处理超长 Cookie，用###分隔）
       - name: 执行多账号米游社任务
         env:
           COOKIE_LIST: ${{ secrets.COOKIE_LIST }}
         run: |
-          # 用###分割Cookie列表，清理空行和多余空格
-          echo "$COOKIE_LIST" | awk -F'###' '{for(i=1;i<=NF;i++){gsub(/^[ \t\n]+|[ \t\n]+$/,"",$i); if($i!="") print $i}}' > cookie.tmp
+          # 创建logs目录（避免日志上传时路径不存在）
+          mkdir -p ./logs
           
-          # 逐行读取每个Cookie并运行任务
+          # 分割并运行每个Cookie
+          echo "$COOKIE_LIST" | awk -F'###' '{for(i=1;i<=NF;i++){gsub(/^[ \t\n]+|[ \t\n]+$/,"",$i); if($i!="") print $i}}' > cookie.tmp
           while IFS= read -r cookie; do
             if [ -n "$cookie" ]; then
-              echo -e "\n==================== 开始运行账号（Cookie前20位）：${cookie:0:20}... ===================="
-              COOKIE="$cookie" python main.py
-              echo -e "==================== 账号运行完成 ====================\n"
+              echo -e "\n==================== 运行账号：${cookie:0:20}... ===================="
+              # 运行脚本并把日志写入logs目录（方便排查）
+              COOKIE="$cookie" python main.py >> ./logs/run.log 2>&1
             fi
           done < cookie.tmp
-          
-          # 删除临时文件
           rm -f cookie.tmp
 
-      # 可选：上传运行日志（若项目生成logs目录）
-      - name: 上传运行日志
+      - name: 上传运行日志（仅当logs目录有文件时）
         uses: actions/upload-artifact@v4
+        if: always()  # 即使前面步骤失败，也上传日志
         with:
           name: mihoyo-bbs-logs
-          path: ./logs
-          retention-days: 3  # 日志保留3天，避免占空间
+          path: ./logs/
+          retention-days: 3
