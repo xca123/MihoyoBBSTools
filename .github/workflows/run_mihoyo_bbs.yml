@@ -1,32 +1,61 @@
-name: 米游社自动任务
+name: 米游社多账号自动任务（每12小时）
+
+# 全局强制使用 Node.js 24，消除弃用警告
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
+  # 手动触发（方便测试）
   workflow_dispatch:
+  # 定时触发：每12小时运行（UTC 0/12点 → 北京时间8/20点）
   schedule:
-    - cron: '0 0,12 * * *'  # 每12小时运行一次（北京时间8点、20点）
+    - cron: '0 0,12 * * *'
 
 jobs:
-  run-task:
+  run-multi-account:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # 拉取代码（适配 Node.js 24）
+      - name: 拉取仓库代码
+        uses: actions/checkout@v4
 
-      - name: 设置 Python 3.10
+      # 配置 Python 环境（适配 Node.js 24）
+      - name: 设置 Python 3.10 环境
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'  # 缓存依赖，加速运行
 
-      - name: 安装依赖
+      # 安装项目依赖
+      - name: 安装依赖包
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: 运行多账号米游社任务
+      # 循环运行所有账号（处理超长 Cookie，用###分隔）
+      - name: 执行多账号米游社任务
         env:
           COOKIE_LIST: ${{ secrets.COOKIE_LIST }}
         run: |
-          echo "$COOKIE_LIST" | while IFS= read -r cookie; do
+          # 用###分割Cookie列表，清理空行和多余空格
+          echo "$COOKIE_LIST" | awk -F'###' '{for(i=1;i<=NF;i++){gsub(/^[ \t\n]+|[ \t\n]+$/,"",$i); if($i!="") print $i}}' > cookie.tmp
+          
+          # 逐行读取每个Cookie并运行任务
+          while IFS= read -r cookie; do
             if [ -n "$cookie" ]; then
-              echo "==================== 运行一个账号 ===================="
+              echo -e "\n==================== 开始运行账号（Cookie前20位）：${cookie:0:20}... ===================="
               COOKIE="$cookie" python main.py
+              echo -e "==================== 账号运行完成 ====================\n"
             fi
-          done
+          done < cookie.tmp
+          
+          # 删除临时文件
+          rm -f cookie.tmp
+
+      # 可选：上传运行日志（若项目生成logs目录）
+      - name: 上传运行日志
+        uses: actions/upload-artifact@v4
+        with:
+          name: mihoyo-bbs-logs
+          path: ./logs
+          retention-days: 3  # 日志保留3天，避免占空间
